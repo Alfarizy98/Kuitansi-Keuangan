@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="id">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Kuitansi Pencairan</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+
+<body>
+  <div id="login-view" class="login-wrap hidden">
+    <div class="login-card">
+      <img src="/logo.png" alt="Logo" class="login-logo">
+      <h1>Kuitansi Pencairan</h1>
+      <p class="muted">BPKPAD Kabupaten Mamuju Tengah</p>
+      <form id="login-form">
+        <label>Username<input id="login-user" required autocomplete="username"></label>
+        <label>Password<input id="login-pass" type="password" required autocomplete="current-password"></label>
+        <div id="login-err" class="alert-err hidden"></div>
+        <button type="submit" class="btn primary full">Masuk</button>
+      </form>
+      <div class="demo-hint">
+        Akun bawaan: <code>operator / operator123</code> atau <code>admin / admin123</code>
+      </div>
+    </div>
+  </div>
+
+  <div id="app-view" class="hidden">
+    <header class="topbar no-print">
+      <div class="brand">
+        <img src="/logo.png" alt="Logo" width="28" height="32">
+        <div>
+          <strong>Kuitansi Pencairan</strong>
+          <span id="user-badge" class="badge"></span>
+        </div>
+      </div>
+      <div class="top-actions">
+        <button id="btn-new" class="btn primary">+ Kuitansi Baru</button>
+      </div>
+    </header>
+
+    <main class="workspace">
+      <section class="left-pane no-print">
+        <div class="card">
+          <div class="card-head">
+            <h2>Riwayat &amp; Arsip Kuitansi</h2>
+            <input id="search-input" type="search" placeholder="Cari desa, tanggal, atau uraian...">
+          </div>
+          <div id="history-list" class="history-list"></div>
+        </div>
+
+        <div class="card">
+          <div class="card-head">
+            <h2 id="form-title">Formulir Kuitansi</h2>
+            <span id="status-pill" class="pill">DRAF</span>
+          </div>
+
+          <details class="tpl-box">
+            <summary>Isi Cepat dari Template: ADD Siltap</summary>
+            <div class="grid-2">
+              <label>Bulan<input id="tpl-bulan" value="Oktober"></label>
+              <label>Desa<input id="tpl-desa" value="Tobadak"></label>
+              <label>Kecamatan<input id="tpl-kec" value="Tobadak"></label>
+              <label>Tahap<input id="tpl-tahap" value="II"></label>
+            </div>
+            <button type="button" id="btn-apply-tpl" class="btn small">Terapkan Template</button>
+          </details>
+
+          <form id="kuitansi-form">
+            <div class="grid-2">
+              <label>Tahun Anggaran *
+                <input id="f-tahun" maxlength="4" required>
+              </label>
+              <label>Tanggal (DD/MM/YYYY) *
+                <input id="f-tanggal" placeholder="DD/MM/YYYY" required>
+              </label>
+            </div>
+            <div class="grid-2">
+              <label>Kode Rekening *
+                <input id="f-kode" placeholder="5,4,02,05,01,0003" required>
+              </label>
+              <label>Buku Kas No (Opsional)
+                <input id="f-bukukas" placeholder="Kosongkan jika belum ada">
+              </label>
+            </div>
+            <label>Desa (untuk pencarian &amp; nama berkas)
+              <input id="f-desa" placeholder="Contoh: Tobadak">
+            </label>
+            <label>Telah Terima Dari *
+              <input id="f-terima" required>
+            </label>
+            <label>Nominal (Rupiah) *
+              <input id="f-nominal" inputmode="numeric" placeholder="100.000.000" required>
+            </label>
+            <label>
+              <span class="label-row">
+                <span>Banyaknya Uang (Terbilang) *</span>
+                <button type="button" id="btn-sync-terbilang" class="link-btn">Samakan Otomatis</button>
+              </span>
+              <textarea id="f-terbilang" rows="2" required></textarea>
+            </label>
+            <label>
+              <span class="label-row">
+                <span>Untuk Pembayaran *</span>
+                <span id="char-count" class="muted">0 / 300</span>
+              </span>
+              <textarea id="f-untuk" rows="3" maxlength="300" required></textarea>
+            </label>
+
+            <div id="form-warnings" class="alert-warn hidden"></div>
+            <div id="form-errors" class="alert-err hidden"></div>
+
+            <div class="actions-bar">
+              <button type="submit" id="btn-save" class="btn primary">Simpan Kuitansi</button>
+              <button type="button" id="btn-lock" class="btn warn">Kunci Final</button>
+              <button type="button" id="btn-print" class="btn">Cetak </button>
+            </div>
+          </form>
+        </div>
+      </section>
+
+      <section class="right-pane">
+        <div class="preview-bar no-print">
+          <span>Pratinjau Langsung (Kertas A4 · Kop &amp; Blok TTE Terkunci)</span>
+        </div>
+        <div class="a4-sheet" id="a4-preview">
+          <div class="top-header-grid">
+            <div class="kop-left-area">
+              <div class="kop-row">
+                <div class="kop-wrap locked-zone" title="Kop surat dikunci oleh Admin">
+                  <img src="/logo.png" alt="Logo Daerah" class="kop-logo">
+                  <div class="kop-text">
+                    <div id="p-kop-1" class="kop-line1"></div>
+                    <div id="p-kop-2" class="kop-line2"></div>
+                  </div>
+                </div>
+                <div class="kwitansi-title locked-label">KWITANSI</div>
+              </div>
+              <div class="kop-rule"></div>
+            </div>
+            <table class="meta-table locked-label">
+              <tr>
+                <td>Tahun Anggaran</td>
+                <td>:</td>
+                <td id="p-tahun" class="val"></td>
+              </tr>
+              <tr>
+                <td>Kode Rekening</td>
+                <td>:</td>
+                <td id="p-kode" class="val"></td>
+              </tr>
+              <tr>
+                <td>Buku Kas No</td>
+                <td>:</td>
+                <td id="p-bukukas" class="val"></td>
+              </tr>
+              <tr>
+                <td>Tanggal</td>
+                <td>:</td>
+                <td id="p-tanggal" class="val"></td>
+              </tr>
+            </table>
+          </div>
+          <div class="thin-rule"></div>
+
+          <table class="body-table">
+            <tr>
+              <td class="lbl italic">Telah Terima Dari</td>
+              <td class="colon">:</td>
+              <td id="p-terima" class="val"></td>
+            </tr>
+            <tr>
+              <td class="lbl">Banyaknya Uang</td>
+              <td class="colon">:</td>
+              <td id="p-terbilang" class="val bold"></td>
+            </tr>
+            <tr>
+              <td class="lbl italic underline">Untuk Pembayaran</td>
+              <td class="colon">:</td>
+              <td id="p-untuk" class="val"></td>
+            </tr>
+          </table>
+
+          <div class="thin-rule"></div>
+          <div class="terbilang-terima-grid">
+            <div class="nominal-col">
+              <div class="nominal-row">
+                <span class="terbilang-lbl">Terbilang :</span>
+                <span id="p-nominal" class="nominal-box"></span>
+              </div>
+            </div>
+            <div class="penerima-col locked-zone" title="Blok TTE baku dan terkunci">
+              <div class="tte-role">YANG MENERIMA</div>
+              <div id="p-ttd-1" class="tte-space"></div>
+              <div id="p-nama-1" class="tte-name"></div>
+            </div>
+          </div>
+
+          <div class="tte-two-col locked-zone" title="Blok TTE baku dan terkunci">
+            <div class="tte-col">
+              <div class="tte-role">SETUJU BAYAR</div>
+              <div class="tte-sub">Pengguna Anggaran</div>
+              <div id="p-ttd-3" class="tte-space"></div>
+              <div id="p-nama-3" class="tte-name"></div>
+              <div id="p-nip-3" class="tte-nip"></div>
+            </div>
+            <div class="tte-col">
+              <div class="tte-role">LUNAS BAYAR</div>
+              <div class="tte-sub">Bendahara Pengeluaran</div>
+              <div id="p-ttd-2" class="tte-space"></div>
+              <div id="p-nama-2" class="tte-name"></div>
+              <div id="p-nip-2" class="tte-nip"></div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- Modal Impor CSV -->
+  <dialog id="import-modal" class="modal no-print">
+    <h3>Impor Massal dari CSV</h3>
+    <p class="muted">Kolom header:
+      <code>tahun_anggaran,kode_rekening,buku_kas_no,tanggal,terima_dari,nominal,untuk_pembayaran,desa</code>
+    </p>
+    <input type="file" id="csv-file" accept=".csv,text/csv">
+    <textarea id="csv-text" rows="6" placeholder="Atau tempel isi CSV di sini..."></textarea>
+    <div class="grid-2">
+      <label>Format Keluaran ZIP
+        <select id="csv-format">
+          <option value="pdf">PDF (A4)</option>
+          <option value="docx">DOCX (A4)</option>
+        </select>
+      </label>
+    </div>
+    <div id="csv-msg" class="alert-err hidden"></div>
+    <div class="modal-actions">
+      <button type="button" id="btn-csv-cancel" class="btn">Tutup</button>
+      <button type="button" id="btn-csv-run" class="btn primary">Proses &amp; Unduh ZIP</button>
+    </div>
+  </dialog>
+
+  <!-- Modal Admin -->
+  <dialog id="admin-modal" class="modal wide no-print">
+    <h3>Panel Admin: Kop, Penandatangan TTE, Pengguna &amp; Log</h3>
+    <form id="admin-config-form">
+      <fieldset>
+        <legend>Kop Surat Tunggal</legend>
+        <label>Baris 1<input id="adm-kop-1" required></label>
+        <label>Baris 2<input id="adm-kop-2" required></label>
+      </fieldset>
+      <fieldset>
+        <legend>Data Baku Blok TTE &amp; Pola Kode Rekening</legend>
+        <div class="grid-2">
+          <label>Placeholder TTD Penerima<input id="adm-ttd-1" required></label>
+          <label>Placeholder Nama Penerima<input id="adm-nama-1" required></label>
+          <label>Placeholder TTD Pengguna Anggaran<input id="adm-ttd-3" required></label>
+          <label>Placeholder Nama Pengguna Anggaran<input id="adm-nama-3" required></label>
+          <label>NIP Pengguna Anggaran<input id="adm-nip-3" required></label>
+          <label>Placeholder TTD Bendahara<input id="adm-ttd-2" required></label>
+          <label>Placeholder Nama Bendahara<input id="adm-nama-2" required></label>
+          <label>NIP Bendahara<input id="adm-nip-2" required></label>
+        </div>
+        <label>Pola Regex Kode Rekening<input id="adm-kode-regex" required></label>
+      </fieldset>
+      <button type="submit" class="btn primary">Simpan Pengaturan</button>
+    </form>
+
+    <hr>
+    <form id="admin-user-form" class="grid-4">
+      <input id="new-u-username" placeholder="Username" required>
+      <input id="new-u-nama" placeholder="Nama Lengkap" required>
+      <select id="new-u-peran">
+        <option value="operator">Operator</option>
+        <option value="admin">Admin</option>
+      </select>
+      <input id="new-u-pass" type="password" placeholder="Password" required>
+      <button type="submit" class="btn">Tambah Pengguna</button>
+    </form>
+    <div id="admin-users-list" class="mini-list"></div>
+    <hr>
+    <h4>Log Perubahan Terbaru</h4>
+    <div id="admin-logs" class="mini-list"></div>
+    <div class="modal-actions">
+      <button type="button" id="btn-admin-close" class="btn">Tutup</button>
+    </div>
+  </dialog>
+
+  <script src="/app.js"></script>
+</body>
+
+</html>

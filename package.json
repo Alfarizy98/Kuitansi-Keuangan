@@ -1,0 +1,10 @@
+{
+  "name": "kuitansi-desa-add",
+  "version": "1.0.0",
+  "description": "Aplikasi Pembuat Kuitansi Desa (ADD) - BPKPAD",
+  "type": "module",
+  "scripts": {
+    "start": "node src/server.js",
+    "test": "node --test tests/*.test.js"
+  }
+}

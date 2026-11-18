@@ -1,0 +1,5 @@
+data/
+node_modules/
+ponytail-main/
+.DS_Store
+*.log
