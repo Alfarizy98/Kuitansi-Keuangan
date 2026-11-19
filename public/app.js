@@ -47,6 +47,64 @@ function autoTerbilang(amount) {
   return parts.length ? `(${parts.join(' ').trim()} Rupiah)` : '';
 }
 
+const STORAGE_KEY = 'kuitansi_desa_items_v1';
+const DEFAULT_CONFIG = {
+  kop: {
+    baris_teks_1: 'PEMERINTAH KABUPATEN MAMUJU TENGAH',
+    baris_teks_2: 'BADAN PENGELOLAAN KEUANGAN, PENDAPATAN DAN ASET DAERAH'
+  },
+  penandatangan: {
+    penerima: { placeholder_ttd: '${ttd_pengirim1}', placeholder_nama: 'KORNELIUS', nip: '' },
+    bendahara: { placeholder_ttd: '${ttd_pengirim2}', placeholder_nama: 'JUNIARTI', nip: '19770618 200312 2 009' },
+    pengguna_anggaran: { placeholder_ttd: '${ttd_pengirim3}', placeholder_nama: 'IMANSYAH, S.Kom., M.M.', nip: '19800101 200901 1 025' }
+  }
+};
+const DEFAULT_TEMPLATES = [{
+  id: 'tpl-add-siltap',
+  nama: 'ADD Siltap',
+  tahun_anggaran: '2026',
+  kode_rekening: '5,4,02,05,01,0003',
+  terima_dari: 'Bendahara Pengeluaran Badan Pengelolaan Keuangan Dan Aset Daerah',
+  untuk_pembayaran_pola: 'Pembayaran (ADD) Siltap Bulan {{bulan}} Desa {{desa}} Kec. {{kecamatan}} Tahap {{tahap}} Ta {{tahun}}'
+}];
+
+function readLocalItems() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) return JSON.parse(raw);
+  } catch {}
+  const seed = [{
+    id: 'kwt-sample-1',
+    tahun_anggaran: '2026',
+    kode_rekening: '5,4,02,05,01,0003',
+    buku_kas_no: '',
+    tanggal: '26/10/2026',
+    terima_dari: 'Bendahara Pengeluaran Badan Pengelolaan Keuangan Dan Aset Daerah',
+    nominal: 51072000,
+    terbilang: '(Lima Puluh Satu Juta Tujuh Puluh Dua Ribu Rupiah)',
+    untuk_pembayaran: 'Pembayaran (ADD) Siltap Bulan Oktober Desa Tobadak Kec. Tobadak Tahap II Ta 2026',
+    desa: 'Tobadak',
+    status: 'draf'
+  }];
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(seed));
+  return seed;
+}
+
+function writeLocalItems(items) {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
+}
+
+function validateLocal(p) {
+  if (!/^\d{4}$/.test(p.tahun_anggaran)) throw new Error('Tahun Anggaran wajib 4 digit angka.');
+  if (!/^\d+(,\d+)+$/.test(p.kode_rekening)) throw new Error('Kode Rekening wajib angka dipisah koma.');
+  if (!/^\d{2}\/\d{2}\/\d{4}$/.test(p.tanggal)) throw new Error('Tanggal wajib berformat DD/MM/YYYY.');
+  if (!p.terima_dari) throw new Error('Telah Terima Dari wajib diisi.');
+  const nom = Number(String(p.nominal).replace(/[^\d]/g, ''));
+  if (!Number.isInteger(nom) || nom <= 0) throw new Error('Nominal wajib bilangan bulat rupiah lebih dari 0.');
+  if (!p.untuk_pembayaran || p.untuk_pembayaran.length > 300) throw new Error('Untuk Pembayaran wajib diisi (maks 300 karakter).');
+  return { ...p, nominal: nom, terbilang: p.terbilang || autoTerbilang(nom) };
+}
+
 async function api(url, opts = {}) {
   const res = await fetch(url, {
     headers: { 'Content-Type': 'application/json', ...(opts.headers || {}) },
@@ -175,8 +233,17 @@ function renderHistory() {
 }
 
 async function refreshHistory() {
-  const q = encodeURIComponent($('search-input').value.trim());
-  const data = await api(`/api/kuitansi?q=${q}`);
+  const qRaw = $('search-input').value.trim();
+  if (state.localMode) {
+    const q = qRaw.toLowerCase();
+    const all = readLocalItems();
+    state.items = q
+      ? all.filter(k => [k.untuk_pembayaran, k.desa, k.kode_rekening, k.buku_kas_no, k.terima_dari, k.tanggal].some(v => String(v || '').toLowerCase().includes(q)))
+      : all;
+    renderHistory();
+    return;
+  }
+  const data = await api(`/api/kuitansi?q=${encodeURIComponent(qRaw)}`);
   state.items = data.items;
   renderHistory();
 }
@@ -197,6 +264,28 @@ async function saveCurrent(e) {
   };
 
   try {
+    if (state.localMode) {
+      const clean = validateLocal(payload);
+      const all = readLocalItems();
+      let saved;
+      if (state.currentId) {
+        const idx = all.findIndex(x => x.id === state.currentId);
+        if (idx >= 0) {
+          if (all[idx].status === 'final') throw new Error('Kuitansi sudah dikunci (arsip).');
+          saved = { ...all[idx], ...clean };
+          all[idx] = saved;
+        }
+      }
+      if (!saved) {
+        saved = { id: `kwt-${Date.now().toString(36)}`, ...clean, status: 'draf' };
+        all.unshift(saved);
+      }
+      writeLocalItems(all);
+      await refreshHistory();
+      loadForm(saved);
+      return saved;
+    }
+
     const res = state.currentId
       ? await api(`/api/kuitansi/${state.currentId}`, { method: 'PUT', body: JSON.stringify(payload) })
       : await api('/api/kuitansi', { method: 'POST', body: JSON.stringify(payload) });
@@ -211,10 +300,17 @@ async function saveCurrent(e) {
 }
 
 async function initSession() {
-  const me = await api('/api/me');
-  state.user = me.user;
-  state.config = me.config;
-  state.templates = me.templates;
+  try {
+    const me = await api('/api/me');
+    state.localMode = false;
+    state.user = me.user;
+    state.config = me.config;
+    state.templates = me.templates;
+  } catch {
+    state.localMode = true;
+    state.config = DEFAULT_CONFIG;
+    state.templates = DEFAULT_TEMPLATES;
+  }
   $('login-view').classList.add('hidden');
   $('app-view').classList.remove('hidden');
   $('user-badge').textContent = 'Mode Desa';
@@ -272,7 +368,12 @@ $('btn-lock').addEventListener('click', async () => {
   try {
     const saved = await saveCurrent();
     if (!saved) return;
-    await api(`/api/kuitansi/${saved.id}/lock`, { method: 'POST' });
+    if (state.localMode) {
+      const all = readLocalItems().map(x => x.id === saved.id ? { ...x, status: 'final' } : x);
+      writeLocalItems(all);
+    } else {
+      await api(`/api/kuitansi/${saved.id}/lock`, { method: 'POST' });
+    }
     await refreshHistory();
     loadForm(null);
   } catch (err) {
